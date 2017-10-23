@@ -1,0 +1,169 @@
+//Add the Twitter Library MKvHYYdYA4G5JJHj7hxIcoh8V4oX7X1M_ by going to Resources > Library > add library. Select version 22 (or whichever is the latest version) and input "Twitter" as the identifier
+
+/*Following inputs need to be tweaked:
+Twitter keys - generate these by going to Twitter Developer section and creating an app
+Frequency of running the main search and log function. Very high frequency will hit Twitter's rate limits and cause thebot to be banned
+Google sheet in which you need to log the tweets
+Max tweet ID needs to be captured in the cell H2 (for a new sheet with just column headers), explanation of max tweet id is below
+since_id (explanation below)
+Properties of tweet or user object you wish to log
+*/
+
+// Written by Amit Agarwal @labnol on 31/07/2015
+ 
+// Fill the Twitter Keys and then choose Run -> Start Bot
+var maxtweet;
+TWITTER_CONSUMER_KEY    = "";
+TWITTER_CONSUMER_SECRET = "";
+TWITTER_ACCESS_TOKEN    = "";
+TWITTER_ACCESS_SECRET   = "";
+
+
+function Start_Bot() {
+  Logger.log("1");
+  
+  var props = PropertiesService.getScriptProperties();
+  
+  props.setProperties({
+    TWITTER_CONSUMER_KEY: TWITTER_CONSUMER_KEY,
+    TWITTER_CONSUMER_SECRET: TWITTER_CONSUMER_SECRET,
+    TWITTER_ACCESS_TOKEN: TWITTER_ACCESS_TOKEN,
+    TWITTER_ACCESS_SECRET: TWITTER_ACCESS_SECRET,
+    SINCE_TWITTER_ID: 0
+  });
+  
+  var twit = new Twitter.OAuth(props);
+  
+  // The main bot function of search and log will be run every 5 minutes. Tweak this number if Twitter warns about rate limit being hit
+  
+    ScriptApp.newTrigger("labnol_twitterBot")
+  .timeBased()
+  .everyMinutes(5)
+  .create();
+  
+  
+}
+ 
+function labnol_twitterBot() {
+  Logger.log("2");
+    
+var ss = SpreadsheetApp.openById("1Oj4oh7OiK6TXN5J-JcGJivo8PGFmMy_a7T0j19VUhuI"); //replace this with your google sheet 
+var sheets = ss.getSheets();
+var sheet = ss.getSheets()[0];
+
+//Search string below  
+var mediaArtsSearch1 = "IndiavsPakistan OR IndvsPak OR PakistanvsIndia OR Pakvsind OR IndiavPakistan OR IndvPak OR PakistanvIndia OR Pakvind exclude:retweets exclude:replies";
+Logger.log(mediaArtsSearch1);
+
+TWITTER_SEARCH_PHRASE   = mediaArtsSearch1;
+for (z = 1; z<=10; z++)
+{ 
+  
+  var lastRow = sheet.getLastRow();
+  var tmp1 = "H";
+  var tmp2;
+  tmp2 = tmp1.concat(lastRow);
+  Logger.log(tmp2);
+  maxtweet = sheets[0].getRange(tmp2).getValue();//this is the last tweet you wish to collect - in case of an event, since_id represents the start of the event and max_id or maxtweet the end of the event
+  
+  try {
+    Logger.log("3");
+    var props = PropertiesService.getScriptProperties(),
+        twit = new Twitter.OAuth(props);
+    
+    if (twit.hasAccess()) {
+      Logger.log("4");
+      var tweets = twit.fetchTweets(
+        TWITTER_SEARCH_PHRASE, function(tweet) {
+          
+            return tweet;
+          
+        }, {
+          multi: true,
+          lang: "en",
+          count: 100,
+          since_id: 876364824640446465,//this is the first tweet you wish to collect - in case of an event, since_id represents the start of the event and max_id or maxtweet the end of the event
+          max_id: maxtweet
+        });
+      Logger.log("5");
+      if (tweets) {
+        Logger.log("6");
+        saveTweets(tweets);
+      }
+    }
+    
+  } catch (f) {
+    Logger.log("Error: " + f.toString());
+  }
+  
+}
+}
+
+function randIndex (arr) {
+  var index = Math.floor(arr.length*Math.random());
+  return arr[index];
+};
+
+
+function datestring ()
+{
+	var d = new Date(Date.now() - 4*60*60*1000);  //hours*60*60*1000
+	return d.getUTCFullYear()   + '-'+  (d.getUTCMonth() + 1) + '-'+   d.getDate();
+};
+
+function saveTweets(tweets) {
+  
+  // Get a reference to the current spreadsheet
+  Logger.log("11");
+  Logger.log(tweets.length);
+  
+  
+
+    var ss = SpreadsheetApp.openById("1Oj4oh7OiK6TXN5J-JcGJivo8PGFmMy_a7T0j19VUhuI"); //replace this with your google sheet 
+  var sheets = ss.getSheets();
+  
+    var sheet = ss.getSheets()[0];
+  Logger.log("41");
+  
+  var lastRow = sheet.getLastRow();
+  
+  j = lastRow+1;
+  var avar;
+  var bvar;
+  var cvar;
+  // Before we iterate over the collection, make sure there are some tweets
+  if(tweets)
+  {
+    for (i = 0; i<tweets.length; i++)
+    {
+      if (!tweets[i].place)
+      {
+       a="";
+       b="";
+      }
+      else
+      {
+        a = tweets[i].place.country;
+        b=tweets[i].place.country_code;
+      }
+      if (!tweets[i].user.location)
+      {
+        c="";
+      }
+      else
+      {
+        c = tweets[i].user.location;
+      }
+          
+      
+       sheet.appendRow([tweets[i].text, tweets[i].user.screen_name, tweets[i].created_at, tweets[i].retweet_count, tweets[i].favorite_count, a, b, tweets[i].id_str, tweets[i].user.geo_enabled, c]);
+
+    }
+    
+
+  }
+  else
+  {
+    Logger.log("Something was wrong with the collection of tweets. No tweets were found.");
+  }
+};
