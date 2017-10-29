@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 import requests
-import urllib
+from urllib.request import urlretrieve
 import pandas as pd
 import re
 import subprocess
 from bs4 import BeautifulSoup as bs4, SoupStrainer
-import json
+from os import path
 
 btc_src = 'http://api.bitcoincharts.com/v1/csv/'
 
@@ -16,11 +16,19 @@ soup = bs4(res.text, parse_only=SoupStrainer('a'))
 #Get list of files
 file_list = re.findall(r'href=\"([\w\.]*)\"', str(soup))
 
-df = pd.DataFrame(columns=['timestamp','price','volume'])
+colnames=['timestamp','price','volume']
+df = pd.DataFrame(columns=colnames)
+
 #Download and add all files to a dataframe
 for f in file_list:
-    urllib.urlretrieve(btc_src + f, f)
-    subprocess.run(['gunzip', f[:-3]])
-    df = df.append(pd.read_csv(f[:-3]))
+    print("Extracting " + f)
+    #Check if csv file exists (avoid unnecessary re-downloads)
+    if not path.isfile(f[:-3]):
+        urlretrieve(btc_src + f, f)
+    if path.getsize(f) > 0:
+        for chunk in pd.read_csv(f[:-3], chunksize = 10 ** 6, names=colnames):
+            df = pd.concat([df, chunk])
+            print('Shape: ')
+            print(df.shape)
 
 df.to_pickle('bitcoin_prices')
